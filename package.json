@@ -5,7 +5,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "react-router dev",
-    "start": "react-router dev",
+    "start": "node server.js",
     "build": "react-router build",
     "preview": "bun run build && vite preview",
     "check": "react-router typegen && tsc -b",
@@ -14,7 +14,10 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",
+    "@react-router/serve": "^7.15.0",
     "@types/mime-types": "^2.1.4",
+    "dotenv": "^17.4.2",
+    "dotenv-cli": "^11.0.0",
     "isbot": "^5.1.31",
     "mime-types": "^2.1.35",
     "react": "^19.1.1",
