@@ -2,9 +2,17 @@ import type { Route } from './+types/api.images';
 
 import { parseDeleteKeys, parseImageListQuery } from '~/lib/images-api';
 import { deleteImages, listImages } from '~/lib/r2.server';
-import { ensureAuthenticatedApiRequest } from '~/lib/session.server';
+import {
+  ensureAuthenticatedApiRequest,
+  handleApiOptionsRequest,
+  jsonWithApiCors,
+} from '~/lib/session.server';
 
 export async function loader({ request }: Route.LoaderArgs) {
+  if (request.method === 'OPTIONS') {
+    return handleApiOptionsRequest(request);
+  }
+
   const authError = await ensureAuthenticatedApiRequest(request);
   if (authError) {
     return authError;
@@ -14,7 +22,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     const { limit, cursor, prefix } = parseImageListQuery(new URL(request.url));
     const result = await listImages(prefix, limit, cursor);
 
-    return Response.json(
+    return jsonWithApiCors(
+      request,
       {
         success: true,
         data: result.images,
@@ -31,7 +40,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     );
   } catch (error) {
     console.error('List images error:', error);
-    return Response.json(
+    return jsonWithApiCors(
+      request,
       {
         error: 'Failed to list images',
         details: error instanceof Error ? error.message : 'Unknown error',
@@ -47,13 +57,17 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (request.method === 'OPTIONS') {
+    return handleApiOptionsRequest(request);
+  }
+
   const authError = await ensureAuthenticatedApiRequest(request);
   if (authError) {
     return authError;
   }
 
   if (request.method !== 'DELETE') {
-    return Response.json({ error: 'Method not allowed' }, { status: 405 });
+    return jsonWithApiCors(request, { error: 'Method not allowed' }, { status: 405 });
   }
 
   try {
@@ -63,7 +77,8 @@ export async function action({ request }: Route.ActionArgs) {
     const keys = parseDeleteKeys(payload);
 
     if (keys.length === 0) {
-      return Response.json(
+      return jsonWithApiCors(
+        request,
         { error: 'No keys provided' },
         {
           status: 400,
@@ -76,7 +91,8 @@ export async function action({ request }: Route.ActionArgs) {
 
     const result = await deleteImages(keys);
 
-    return Response.json(
+    return jsonWithApiCors(
+      request,
       {
         success: result.failed.length === 0,
         deleted: result.deleted,
@@ -90,7 +106,8 @@ export async function action({ request }: Route.ActionArgs) {
     );
   } catch (error) {
     console.error('Delete image error:', error);
-    return Response.json(
+    return jsonWithApiCors(
+      request,
       {
         error: 'Failed to delete image',
         details: error instanceof Error ? error.message : 'Unknown error',

@@ -9,12 +9,44 @@ type AuthSessionData = {
   authenticated?: boolean;
 };
 
+const CORS_METHODS = 'GET, POST, DELETE, OPTIONS';
+const CORS_HEADERS = 'Authorization, Content-Type';
+
 function getAdminPassword(): string {
   if (!process.env.ADMIN_PASSWORD) {
     throw new Error('ADMIN_PASSWORD is not configured');
   }
 
   return process.env.ADMIN_PASSWORD;
+}
+
+function getExternalApiToken(): string | null {
+  const token = process.env.EXTERNAL_API_TOKEN?.trim();
+  return token || null;
+}
+
+function getBearerToken(request: Request): string | null {
+  const authorization = request.headers.get('Authorization');
+  if (!authorization) {
+    return null;
+  }
+
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+}
+
+function hasValidBearerToken(request: Request): boolean {
+  const expectedToken = getExternalApiToken();
+  const receivedToken = getBearerToken(request);
+
+  return Boolean(expectedToken && receivedToken && receivedToken === expectedToken);
+}
+
+function getAllowedApiOrigins(): string[] {
+  return (process.env.API_CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 }
 
 function createSessionStorage() {
@@ -63,21 +95,32 @@ export async function requireAuthenticatedRequest(request: Request) {
 }
 
 export async function ensureAuthenticatedApiRequest(request: Request) {
+  if (hasValidBearerToken(request)) {
+    return null;
+  }
+
+  const authorization = request.headers.get('Authorization');
+  if (authorization) {
+    return jsonWithApiCors(request, { error: 'Authentication required' }, {
+      status: 401,
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
   const authenticated = await isAuthenticated(request);
 
   if (authenticated) {
     return null;
   }
 
-  return Response.json(
-    { error: 'Authentication required' },
-    {
-      status: 401,
-      headers: {
-        'Cache-Control': 'no-store',
-      },
-    }
-  );
+  return jsonWithApiCors(request, { error: 'Authentication required' }, {
+    status: 401,
+    headers: {
+      'Cache-Control': 'no-store',
+    },
+  });
 }
 
 export function verifyPassword(password: string) {
@@ -86,4 +129,60 @@ export function verifyPassword(password: string) {
 
 export function getSafeNextPath(value: string | null | undefined) {
   return sanitizeNextPath(value);
+}
+
+export function getApiCorsHeaders(request: Request): Headers {
+  const headers = new Headers();
+  const origin = request.headers.get('Origin');
+  const allowedOrigins = getAllowedApiOrigins();
+
+  if (!origin || allowedOrigins.length === 0) {
+    return headers;
+  }
+
+  if (allowedOrigins.includes('*')) {
+    headers.set('Access-Control-Allow-Origin', '*');
+  } else if (allowedOrigins.includes(origin)) {
+    headers.set('Access-Control-Allow-Origin', origin);
+    headers.set('Vary', 'Origin');
+  } else {
+    return headers;
+  }
+
+  headers.set('Access-Control-Allow-Methods', CORS_METHODS);
+  headers.set('Access-Control-Allow-Headers', CORS_HEADERS);
+  headers.set('Access-Control-Max-Age', '86400');
+
+  return headers;
+}
+
+export function withApiCorsHeaders(request: Request, headers?: HeadersInit): Headers {
+  const nextHeaders = new Headers(headers);
+  const corsHeaders = getApiCorsHeaders(request);
+
+  corsHeaders.forEach((value, key) => {
+    nextHeaders.set(key, value);
+  });
+
+  return nextHeaders;
+}
+
+export function jsonWithApiCors(
+  request: Request,
+  data: unknown,
+  init: ResponseInit = {}
+): Response {
+  return Response.json(data, {
+    ...init,
+    headers: withApiCorsHeaders(request, init.headers),
+  });
+}
+
+export function handleApiOptionsRequest(request: Request): Response {
+  return new Response(null, {
+    status: 204,
+    headers: withApiCorsHeaders(request, {
+      'Cache-Control': 'no-store',
+    }),
+  });
 }
