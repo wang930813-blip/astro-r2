@@ -21,11 +21,11 @@ If your server uses the older Compose command:
 docker-compose up -d --build
 ```
 
-The app listens on port `3000` inside and outside the container. Configure
-Nginx or the BaoTa reverse proxy to:
+The app listens on port `3000` inside the container and `3030` on the server.
+Configure Nginx or the BaoTa reverse proxy to:
 
 ```text
-http://127.0.0.1:3000
+http://127.0.0.1:3030
 ```
 
 ## Update
