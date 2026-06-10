@@ -1,0 +1,13 @@
+services:
+  shengzhifile:
+    build: .
+    container_name: shengzhifile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      NODE_ENV: production
+    ports:
+      - "3000:3000"

@@ -1,0 +1,16 @@
+node_modules
+build
+dist
+dist-package
+.git
+.react-router
+.vercel
+.wrangler
+*.zip
+*.log
+*.tsbuildinfo
+.env
+.env.local
+.env.production
+Dockerfile
+docker-compose.yml
